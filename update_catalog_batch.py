@@ -16,11 +16,12 @@ Features:
 4. Formats Child Sheets:
    - Row 3 Header: 6 columns with Navy fill & White text:
      ['Sr. No', 'Layer Available Fields', 'Target Industries', 'Potential Analysis', 'Potential Analysis Manual', 'Remark']
-   - Col 5 ('Potential Analysis Manual') strictly VACANT for user entry.
-   - Col 4 ('Potential Analysis') populated with Senior Geospatial Analyst rigor.
-   - Col 6 ('Remark') populated with concise context notes.
+   - Col 3 ('Target Industries'): Domain-specific stakeholder listing.
+   - Col 4 ('Potential Analysis'): Attribute-level Senior Geospatial Analyst analytical methodology.
+   - Col 5 ('Potential Analysis Manual'): STRICTLY VACANT / None across all data rows for user manual entry.
+   - Col 6 ('Remark'): Concise, high-value technical context notes.
    - Zebra striping, 48pt row height, freeze panes at A4, back link at A1.
-5. Handles Excel process lock gracefully.
+5. Handles Excel process lock and cleans up AutoRecover cache.
 """
 
 import os
@@ -80,7 +81,7 @@ ALIGN_CENTER_TOP = Alignment(horizontal="center", vertical="top")
 def close_running_excel():
     """Silently terminate Excel process if running on Windows to prevent file lock errors."""
     try:
-        subprocess.run(["powershell", "-Command", "Stop-Process -Name EXCEL -ErrorAction SilentlyContinue"],
+        subprocess.run(["powershell", "-NoProfile", "-Command", "Stop-Process -Name EXCEL -Force -ErrorAction SilentlyContinue"],
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except Exception:
         pass
@@ -296,12 +297,12 @@ def generate_field_analysis(domain, f_clean, base_target_ind):
     f_lower = f_clean.lower()
 
     # Spatial Key / Identifier
-    if f_lower in ['objectid', 'fid', 'id', 'pfafstetter id', 'gems_id_w', 'plaza code', 'st_code', 'dt_code', 'gid']:
+    if f_lower in ['objectid', 'objectid_1', 'fid', 'id', 'pfafstetter id', 'gems_id_w', 'plaza code', 'st_code', 'dt_code', 'gid']:
         t_ind = "GIS & Spatial Data Infrastructure, IT & Spatial Database Services"
         p_an = "Primary spatial feature indexing (R-tree), unique record joins, and topological geometry validation"
         rem = "ESRI primary key / spatial index"
     # Administrative Codes
-    elif any(k in f_lower for k in ['state code', 'district code', 'sub district code', 'village code', 'lgd', 'constituency code', 'ward code']):
+    elif any(k in f_lower for k in ['state code', 'district code', 'sub district code', 'village code', 'lgd', 'constituency code', 'ward code', 'lgd_dist', 'lgd_statec', 'prjcode']):
         t_ind = "E-Governance, Public Administration, Inter-Departmental Spatial Data Integration"
         p_an = "Standardized relational key joins with Local Government Directory (LGD/NIC) datasets and national administrative spatial layers"
         rem = "Official Government of India administrative code"
@@ -311,12 +312,12 @@ def generate_field_analysis(domain, f_clean, base_target_ind):
         p_an = "Spatial join with Census demographic polygons for population-at-risk normalization and socio-economic vulnerability indexing"
         rem = "Standard Census 2011 administrative identifier"
     # Names / Labels
-    elif f_lower in ['name', 'state name', 'district name', 'country name', 'sub district name', 'village name', 'ward name', 'circle name', 'region name', 'division name', 'location', 'state', 'district']:
+    elif f_lower in ['name', 'state name', 'district name', 'country name', 'sub district name', 'village name', 'ward name', 'circle name', 'region name', 'division name', 'location', 'state', 'district', 'state_name', 'dist_name', 'subdistrict name']:
         t_ind = "State & Central Governance, Urban & Regional Planning, Cartography"
         p_an = "Thematic choropleth labeling, administrative boundary aggregation, and spatial dissolve operations"
         rem = "Official administrative boundary name"
     # Area & Perimeter
-    elif 'area' in f_lower and any(k in f_lower for k in ['shape', 'sq', 'st_area', 'shape_area', 'total']):
+    elif 'area' in f_lower and any(k in f_lower for k in ['shape', 'sq', 'st_area', 'shape_area', 'total', 'percent_flooded']):
         t_ind = "GIS & Geospatial Analytics, Cartography, Regional Planning"
         p_an = "Spatial normalization denominator for computing thematic density per 1,000 km² and area coverage ratios"
         rem = "Projected polygon area in coordinate square units"
@@ -514,7 +515,7 @@ def run_batch_update(start_sr, end_sr, workbook_path="exported_geojson_540andtif
 
         ws = wb[sheet_name]
 
-        # 1. Update Row 3 Table Headers
+        # 1. Update Row 3 Table Headers (ensure 6 columns)
         ws.row_dimensions[3].height = 26
         for col_idx, (hdr_text, col_w) in enumerate(child_headers, start=1):
             cell = ws.cell(row=3, column=col_idx, value=hdr_text)
@@ -525,11 +526,18 @@ def run_batch_update(start_sr, end_sr, workbook_path="exported_geojson_540andtif
             col_letter = get_column_letter(col_idx)
             ws.column_dimensions[col_letter].width = col_w
 
+        # Clear any old headers in Col 7 or beyond
+        for c_extra in range(7, ws.max_column + 1):
+            cell_extra = ws.cell(row=3, column=c_extra)
+            cell_extra.value = None
+            cell_extra.fill = PatternFill(fill_type=None)
+            cell_extra.border = Border()
+
         # 2. Update Data Rows (Row 4 onwards)
         max_r = ws.max_row
         for r in range(4, max_r + 1):
             f_name = str(ws.cell(r, 2).value or "").strip()
-            if not f_name:
+            if not f_name or f_name.lower() in ["none", ""]:
                 continue
 
             fill_style = FILL_ZEBRA_ODD if (r % 2 == 0) else FILL_ZEBRA_EVEN
@@ -563,7 +571,7 @@ def run_batch_update(start_sr, end_sr, workbook_path="exported_geojson_540andtif
             c4.border = BORDER_DATA_CELL
             c4.fill = fill_style
 
-            # Col 5: Potential Analysis Manual (STRICTLY VACANT)
+            # Col 5: Potential Analysis Manual (STRICTLY VACANT FOR USER MANUAL ENTRY)
             c5 = ws.cell(row=r, column=5)
             c5.value = None
             c5.font = FONT_DATA
@@ -577,6 +585,11 @@ def run_batch_update(start_sr, end_sr, workbook_path="exported_geojson_540andtif
             c6.alignment = ALIGN_LEFT_TOP_WRAP
             c6.border = BORDER_DATA_CELL
             c6.fill = fill_style
+
+            # Clear extra columns if any
+            for c_extra in range(7, ws.max_column + 1):
+                c_ex = ws.cell(row=r, column=c_extra)
+                c_ex.value = None
 
             ws.row_dimensions[r].height = 48
             total_fields_updated += 1
