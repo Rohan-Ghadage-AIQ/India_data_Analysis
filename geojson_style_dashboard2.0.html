@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GeoJSON Attribute Styler</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+:root{--bg:#071525;--panel:#0c1d31;--panel2:#10263f;--line:#20415e;--text:#eaf4fb;--muted:#8eabc0;--accent:#3aa8ff;--accent2:#8bd1ff;--danger:#ff6576;--shadow:0 14px 42px rgba(0,0,0,.28)}
+*{box-sizing:border-box} html,body{height:100%;margin:0;font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+.app{height:100vh;display:grid;grid-template-columns:360px 1fr;overflow:hidden}
+.sidebar{background:linear-gradient(180deg,#0a1b2e,#081625);border-right:1px solid var(--line);display:flex;flex-direction:column;min-width:0}
+.brand{padding:20px 20px 14px;border-bottom:1px solid var(--line)}
+.brand h1{font-size:20px;margin:0 0 5px;letter-spacing:.2px}.brand p{margin:0;color:var(--muted);font-size:12px;line-height:1.45}
+.section{padding:16px 18px;border-bottom:1px solid rgba(32,65,94,.7)}
+.section h2{font-size:11px;text-transform:uppercase;letter-spacing:1.15px;color:#9fc1d8;margin:0 0 11px}
+.drop{border:1.5px dashed #3c6b8d;border-radius:12px;padding:20px 14px;text-align:center;background:rgba(20,54,83,.28);cursor:pointer;transition:.2s}
+.drop:hover,.drop.drag{border-color:var(--accent);background:rgba(58,168,255,.08)}
+.drop strong{display:block;font-size:14px;margin-bottom:4px}.drop span{display:block;color:var(--muted);font-size:11px}
+.file-btn{display:inline-block;margin-top:11px;padding:8px 12px;background:#153754;border:1px solid #295b7e;border-radius:8px;font-size:12px;color:#e9f6ff}
+input[type=file]{display:none}
+.layers{display:flex;flex-direction:column;gap:7px;max-height:170px;overflow:auto}.layer-item{display:flex;align-items:center;justify-content:space-between;gap:8px;background:#0d2237;border:1px solid #173c59;border-radius:9px;padding:8px 9px;cursor:pointer}.layer-item.active{border-color:#3aa8ff;box-shadow:inset 0 0 0 1px rgba(58,168,255,.2)}.layer-name{min-width:0}.layer-name b{display:block;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.layer-name span{display:block;font-size:10px;color:var(--muted);margin-top:2px}.pill{font-size:9px;color:#a7dbff;background:#123752;border:1px solid #225b81;padding:3px 6px;border-radius:99px;white-space:nowrap}
+select{width:100%;background:#091a2c;border:1px solid #2a5270;color:var(--text);border-radius:8px;padding:9px 10px;font-size:12px;outline:none}select:focus{border-color:var(--accent)}
+.attr-meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}.metric{padding:9px;background:#0a1a2c;border:1px solid #183d5b;border-radius:8px}.metric span{display:block;font-size:9px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted)}.metric b{display:block;font-size:13px;margin-top:2px}
+.legend{padding:14px 18px 18px;overflow:auto}.legend-bar{height:12px;border-radius:6px;background:linear-gradient(90deg,#e7f5ff,#c7e7fa,#93c9e9,#5da7d2,#2e7cab,#15557e,#083b5c);border:1px solid #2b5672}.legend-labels{display:flex;justify-content:space-between;font-size:10px;color:#9eb9cb;margin-top:5px}.classes{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:10px}.class-row{display:flex;align-items:center;gap:6px;font-size:10px;color:#c1d4e1}.swatch{width:14px;height:14px;border-radius:3px;border:1px solid rgba(255,255,255,.15);flex:0 0 14px}.null-row{margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
+.actions{display:flex;gap:7px;margin-top:10px}.btn{border:1px solid #2b5877;background:#112e48;color:#dff2ff;padding:8px 10px;border-radius:7px;font-size:11px;cursor:pointer}.btn:hover{border-color:#4c96c7}.btn.primary{background:#0f6095;border-color:#2c86bd}.btn:disabled{opacity:.4;cursor:not-allowed}
+.empty{text-align:center;color:var(--muted);font-size:11px;padding:18px 8px}.main{position:relative;min-width:0;min-height:0}.map-wrap{position:absolute;inset:0;overflow:hidden}#map{position:absolute;inset:0;width:100%;height:100%;background:#dbe7ee}
+.topbar{position:absolute;z-index:1000;left:18px;right:18px;top:16px;display:flex;justify-content:space-between;pointer-events:none}.status{pointer-events:auto;background:rgba(8,25,42,.94);border:1px solid #244b68;border-radius:10px;padding:9px 12px;box-shadow:var(--shadow);font-size:11px;color:#c5dbea}.status strong{color:#fff}.map-card{pointer-events:auto;background:rgba(8,25,42,.94);border:1px solid #244b68;border-radius:10px;padding:9px 11px;box-shadow:var(--shadow);font-size:11px}.map-card kbd{font-family:inherit;background:#16334d;border:1px solid #2f5e7f;border-radius:4px;padding:2px 5px;color:#b9ddf3}
+.leaflet-control-layers{background:#0b1e31!important;color:#dceefa!important;border:1px solid #234c69!important;border-radius:8px!important}.leaflet-control-layers-separator{border-top-color:#31566f!important}.leaflet-control-zoom a{background:#0b1e31!important;color:#dceefa!important;border-color:#234c69!important}.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#0c2136;color:#eaf5ff}.leaflet-popup-content{font-size:12px}.leaflet-popup-content table{border-collapse:collapse;width:100%}.leaflet-popup-content td{padding:3px 5px;border-bottom:1px solid #1d415c}.leaflet-popup-content td:first-child{color:#8fb0c7;font-weight:600}
+.note{color:#7191a8;font-size:10px;line-height:1.4;margin-top:8px}
+.table-actions{display:flex;gap:7px;margin-top:9px}.table-wrap{position:absolute;z-index:1200;left:16px;right:16px;bottom:16px;max-height:62%;background:rgba(7,21,37,.98);border:1px solid #2a5877;border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.45);display:none;overflow:hidden}.table-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-bottom:1px solid #21465f;background:#0c2136}.table-head strong{font-size:12px}.table-head span{font-size:10px;color:#8eabc0}.table-scroll{overflow:auto;max-height:calc(62vh - 90px)}.attr-table{border-collapse:separate;border-spacing:0;min-width:100%;font-size:10px}.attr-table th,.attr-table td{padding:6px 8px;border-right:1px solid #183a51;border-bottom:1px solid #183a51;text-align:left;white-space:nowrap}.attr-table th{position:sticky;top:0;z-index:2;background:#102d47;color:#bfe3f7}.attr-table td{color:#d5e4ed}.attr-table tr:hover td{background:#0e2940}.null-cell{color:#71899a!important;font-style:italic}.table-footer{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-top:1px solid #21465f;background:#0b1e31}.pager{display:flex;gap:6px;align-items:center}.pager button{border:1px solid #2b5877;background:#112e48;color:#dff2ff;padding:5px 8px;border-radius:6px;font-size:10px;cursor:pointer}.pager button:disabled{opacity:.4;cursor:not-allowed}.page-info{font-size:10px;color:#9db7c8}.layer-sub{font-size:9px;color:#7191a8;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.source-count{font-size:9px;color:#9fc1d8;margin-left:4px}
+@media(max-width:900px){.app{grid-template-columns:310px 1fr}.topbar{left:10px;right:10px;top:10px}.map-card{display:none}}
+@media(max-width:700px){.app{grid-template-columns:1fr;grid-template-rows:46vh 54vh}.sidebar{grid-row:2;border-right:0;border-top:1px solid var(--line)}.main{grid-row:1}.layers{max-height:85px}.legend{display:none}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><h1>GeoJSON Attribute Styler</h1><p>Upload GeoJSON layers and drive feature symbology directly from any numeric attribute.</p></div>
+    <div class="section">
+      <h2>1 · Upload data</h2>
+      <div id="drop" class="drop"><strong>Drop GeoJSON files here</strong><span>or choose one or more .geojson / .json files</span><label class="file-btn" for="fileInput">Browse files</label><input id="fileInput" type="file" accept=".geojson,.json,application/geo+json,application/json" multiple /></div>
+      <div class="note">Each file becomes an independent map layer. Files are processed locally in your browser.</div>
+    </div>
+    <div class="section">
+      <h2>2 · Layers</h2>
+      <div id="layers" class="layers"><div class="empty">No GeoJSON loaded.</div></div>
+    </div>
+    <div class="section">
+      <h2>3 · Symbology attribute</h2>
+      <select id="attributeSelect" disabled><option>Select a layer first</option></select>
+      <div class="attr-meta">
+        <div class="metric"><span>Minimum</span><b id="minVal">—</b></div>
+        <div class="metric"><span>Maximum</span><b id="maxVal">—</b></div>
+      </div>
+      <div class="actions"><button class="btn primary" id="downloadStyle" disabled>Download style JSON</button><button class="btn" id="downloadSld" disabled>Download SLD</button></div>
+      <div class="table-actions"><button class="btn" id="addStyledLayer" disabled>＋ Add as map layer</button><button class="btn" id="viewTable" disabled>View attribute table</button></div>
+      <div class="note">Changing the attribute restyles the selected map layer. Use <b>＋ Add as map layer</b> to keep the current file on the map multiple times with different attributes.</div>
+    </div>
+    <div class="legend">
+      <h2>Generated legend</h2>
+      <div id="legendEmpty" class="empty">Choose a numeric attribute.</div>
+      <div id="legendContent" style="display:none"><div class="legend-bar"></div><div class="legend-labels"><span id="legendMin">—</span><span id="legendMax">—</span></div><div id="classes" class="classes"></div></div>
+    </div>
+  </aside>
+  <main class="main">
+    <div class="map-wrap"><div id="map"></div></div>
+    <div class="topbar"><div class="status" id="status">Ready — upload a GeoJSON layer</div><div class="map-card"><strong style="color:#8bd1ff">VECTOR OVERLAY</strong>&nbsp; · &nbsp;<kbd>Click</kbd> a feature for attributes</div></div>
+    <div id="tableWrap" class="table-wrap">
+      <div class="table-head"><div><strong id="tableTitle">Attribute table</strong><br><span id="tableSummary">—</span></div><button class="btn" id="closeTable">Close</button></div>
+      <div class="table-scroll"><table id="attrTable" class="attr-table"></table></div>
+      <div class="table-footer"><div class="page-info" id="pageInfo">—</div><div class="pager"><button id="prevPage">Previous</button><button id="nextPage">Next</button></div></div>
+    </div>
+  </main>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const map=L.map('map',{preferCanvas:true,zoomControl:true,attributionControl:true,renderer:L.canvas({padding:0.5})}).setView([20.5,78.9],5);
+const baseLayers={
+  'Light basemap':L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:20,attribution:'© OpenStreetMap contributors © CARTO'}),
+  'OpenStreetMap':L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}),
+  'Satellite':L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri'})
+};
+baseLayers['Light basemap'].addTo(map);
+const layerControl=L.control.layers(baseLayers,null,{collapsed:false,position:'topright'}).addTo(map);
+map.createPane('geojsonPane'); map.getPane('geojsonPane').style.zIndex=450;
+map.getPane('geojsonPane').style.pointerEvents='auto';
+map.createPane('geojsonLabels'); map.getPane('geojsonLabels').style.zIndex=500;
+
+const state={layers:new Map(),activeId:null,tablePage:1,tablePageSize:50};
+const ramp=[ '#e7f5ff','#c7e7fa','#93c9e9','#5da7d2','#2e7cab','#15557e','#083b5c' ];
+
+const $=id=>document.getElementById(id);
+const drop=$('drop'), fileInput=$('fileInput'), layersEl=$('layers'), attrSelect=$('attributeSelect');
+
+function fmt(v){if(!Number.isFinite(v))return '—';return Math.abs(v)>=1000?v.toLocaleString(undefined,{maximumFractionDigits:2}):v.toLocaleString(undefined,{maximumFractionDigits:4});}
+function escapeHtml(s){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
+const NULL_COLOR='#7d8790';
+function hasNumericValue(v){
+  return v!==null && v!==undefined && v!=='' && !(typeof v==='string' && v.trim()==='') && Number.isFinite(Number(v));
+}
+function hashColor(v,min,max){
+  if(!Number.isFinite(v)) return NULL_COLOR;
+  if(max===min)return ramp[3];
+  const t=Math.max(0,Math.min(1,(v-min)/(max-min)));
+  const x=t*(ramp.length-1),i=Math.min(ramp.length-2,Math.floor(x)),f=x-i;
+  const a=ramp[i].match(/[0-9a-f]{2}/g).map(h=>parseInt(h,16)),b=ramp[i+1].match(/[0-9a-f]{2}/g).map(h=>parseInt(h,16));
+  return '#'+a.map((n,k)=>Math.round(n+(b[k]-n)*f).toString(16).padStart(2,'0')).join('');
+}
+function geometrySummary(g){if(!g)return 'No geometry'; if(g.type==='FeatureCollection')return `${g.features.length} features`; if(g.type==='Feature')return g.geometry?.type||'Feature'; return g.type||'Geometry';}
+
+function numericFields(fc){
+  const stats=new Map();
+  for(const f of (fc.features||[])){
+    for(const [k,v] of Object.entries(f.properties||{})){
+      if(!hasNumericValue(v)) continue;
+      const n=Number(v);
+      let st=stats.get(k);
+      if(!st){ st={name:k,min:n,max:n,count:0}; stats.set(k,st); }
+      else { if(n<st.min)st.min=n; if(n>st.max)st.max=n; }
+      st.count++;
+    }
+  }
+  return [...stats.values()];
+}
+
+function jsonParseError(err,text){
+  const msg=String(err&&err.message||err);
+  const m=msg.match(/position (\d+)/i);
+  if(!m) return msg;
+  const pos=Number(m[1]);
+  const before=text.slice(0,pos);
+  const line=(before.match(/\n/g)||[]).length+1;
+  const lastNl=before.lastIndexOf('\n');
+  const column=pos-(lastNl<0?-1:lastNl);
+  return `${msg} (line ${line}, column ${column}). This file is not valid JSON; check for a missing comma, quote, bracket, or brace near that location.`;
+}
+
+function repairCommonJson(text){
+  let repaired=text;
+  let changed=false;
+  // Repair the most common hand-edited GeoJSON mistake: a missing comma
+  // between two object properties on adjacent lines.
+  const propertyBoundary=/(["\d\]\}eE]|true|false|null)([ \t]*\r?\n[ \t]*)(["'](?:[^"'\\]|\\.)*["'])([ \t]*):/g;
+  repaired=repaired.replace(propertyBoundary,(m,value,ws,key)=>{
+    if(value.trim().endsWith(',')) return m;
+    changed=true;
+    return `${value},${ws}${key}:`;
+  });
+  return {text:repaired,changed};
+}
+
+function parseGeoJSON(data){
+  if(Array.isArray(data)){
+    if(data.every(x=>x&&x.type==='Feature')) return {type:'FeatureCollection',features:data};
+    throw new Error('A JSON array was found, but it does not contain GeoJSON Feature objects.');
+  }
+  if(!data || typeof data!=='object') throw new Error('The file does not contain a JSON object.');
+  if(data.type==='FeatureCollection'){
+    if(!Array.isArray(data.features)) throw new Error('FeatureCollection is missing its features array.');
+    return data;
+  }
+  if(data.type==='Feature') return {type:'FeatureCollection',features:[data]};
+  const geomTypes=new Set(['Point','MultiPoint','LineString','MultiLineString','Polygon','MultiPolygon']);
+  if(geomTypes.has(data.type)) return {type:'FeatureCollection',features:[{type:'Feature',properties:{},geometry:data}]};
+  if(data.type==='GeometryCollection' && Array.isArray(data.geometries)){
+    return {type:'FeatureCollection',features:data.geometries.map(g=>({type:'Feature',properties:{},geometry:g}))};
+  }
+  throw new Error(`Unsupported JSON object type: ${data.type||'unknown'}. Expected GeoJSON Feature, FeatureCollection, or geometry.`);
+}
+
+function popupHTML(props){
+  const rows=Object.entries(props||{}).map(([k,v])=>`<tr><td>${escapeHtml(k)}</td><td>${escapeHtml(v===null?'null':v)}</td></tr>`).join('');
+  return `<div style="max-width:320px"><table>${rows||'<tr><td>No attributes</td></tr>'}</table></div>`;
+}
+
+function mercatorToLonLat(x,y){
+  const R=6378137;
+  const lon=x/R*180/Math.PI;
+  const lat=(2*Math.atan(Math.exp(y/R))-Math.PI/2)*180/Math.PI;
+  return [lon,lat];
+}
+function normalizeCoords(coords){
+  if(!Array.isArray(coords)) return coords;
+  if(coords.length===0) return coords;
+  if(typeof coords[0]==='number'){
+    const x=Number(coords[0]), y=Number(coords[1]);
+    if(Number.isFinite(x)&&Number.isFinite(y)&&(Math.abs(x)>180||Math.abs(y)>90)) return mercatorToLonLat(x,y);
+    return [x,y];
+  }
+  return coords.map(normalizeCoords);
+}
+function normalizeGeoJSON(fc){
+  const out=JSON.parse(JSON.stringify(fc));
+  for(const f of out.features||[]){
+    if(f.geometry && f.geometry.coordinates) f.geometry.coordinates=normalizeCoords(f.geometry.coordinates);
+  }
+  return out;
+}
+function geometryCounts(fc){
+  const c={Point:0,LineString:0,Polygon:0,Other:0};
+  for(const f of fc.features||[]){ const t=f.geometry?.type||'Other'; if(t==='Point'||t==='MultiPoint')c.Point++; else if(t==='LineString'||t==='MultiLineString')c.LineString++; else if(t==='Polygon'||t==='MultiPolygon')c.Polygon++; else c.Other++; }
+  return c;
+}
+
+function styleFeature(feature, info){
+  const p=feature.properties||{}, raw=p[info.attribute]; const valid=hasNumericValue(raw); const v=valid?Number(raw):NaN; const color=hashColor(v,info.min,info.max);
+  const geom=feature.geometry?.type||'';
+  const isPoly=/Polygon/.test(geom), isLine=/LineString/.test(geom);
+  return {pane:'geojsonPane',color:color,weight:isPoly?2.2:(isLine?4:2),opacity:1,fillColor:color,fillOpacity:isPoly?(valid?0.78:0.46):0,radius:8,dashArray:(!valid && (isPoly||isLine))?'5 4':undefined};
+}
+function makeLayer(item){
+  const info=item.style;
+  const geo=L.geoJSON(item.data,{
+    pane:'geojsonPane',
+    interactive:true,
+    style:f=>styleFeature(f,info),
+    pointToLayer:(f,ll)=>{ const s=styleFeature(f,info); return L.circleMarker(ll,{pane:'geojsonPane',...s}); },
+    onEachFeature:(f,l)=>{ l.bindPopup(popupHTML(f.properties||{})); l.on({mouseover:e=>{ if(e.target.setStyle)e.target.setStyle({weight:5,fillOpacity:.95}); },mouseout:e=>{ if(e.target.setStyle)e.target.setStyle(styleFeature(f,info)); }}); }
+  });
+  return geo;
+}
+function refreshItem(item){
+  if(item.mapLayer){item.mapLayer.remove();layerControl.removeLayer(item.mapLayer);}
+  item.mapLayer=makeLayer(item); item.mapLayer.addTo(map); layerControl.addOverlay(item.mapLayer,displayLayerName(item));
+}
+
+
+function getSourceId(item){ return item.sourceId || item.id; }
+function displayLayerName(item){
+  const source=item.sourceName||item.name;
+  const attr=item.style?.attribute||'No numeric attribute';
+  return item.layerName || `${source} · ${attr}`;
+}
+function closeTable(){ $('tableWrap').style.display='none'; }
+function openTable(item){
+  if(!item){return;}
+  state.tablePage=1;
+  $('tableTitle').textContent=`Attribute table — ${item.name}`;
+  $('tableSummary').textContent=`${item.data.features.length.toLocaleString()} features · all attributes shown`;
+  renderTable(item);
+  $('tableWrap').style.display='block';
+}
+function renderTable(item){
+  if(!item)return;
+  const features=item.data.features||[];
+  const keys=[]; const seen=new Set();
+  for(const f of features){ for(const k of Object.keys(f.properties||{})){ if(!seen.has(k)){seen.add(k);keys.push(k);} } }
+  const start=(state.tablePage-1)*state.tablePageSize;
+  const end=Math.min(features.length,start+state.tablePageSize);
+  const rows=features.slice(start,end);
+  const head=['#',...keys].map(k=>`<th>${escapeHtml(k)}</th>`).join('');
+  const body=rows.map((f,i)=>{
+    const props=f.properties||{};
+    const cells=keys.map(k=>{
+      const v=props[k];
+      const isNull=v===null||v===undefined||v==='';
+      return `<td class="${isNull?'null-cell':''}">${escapeHtml(isNull?'null':v)}</td>`;
+    }).join('');
+    return `<tr><td>${start+i+1}</td>${cells}</tr>`;
+  }).join('');
+  $('attrTable').innerHTML=`<thead><tr>${head}</tr></thead><tbody>${body||`<tr><td>No records</td></tr>`}</tbody>`;
+  const totalPages=Math.max(1,Math.ceil(features.length/state.tablePageSize));
+  $('pageInfo').textContent=`Rows ${features.length?start+1:0}–${end} of ${features.length.toLocaleString()} · Page ${state.tablePage}/${totalPages}`;
+  $('prevPage').disabled=state.tablePage<=1;
+  $('nextPage').disabled=state.tablePage>=totalPages;
+}
+function updateLayerList(){
+  if(state.layers.size===0){layersEl.innerHTML='<div class="empty">No GeoJSON loaded.</div>';return;}
+  layersEl.innerHTML='';
+  const sourceCounts=new Map();
+  for(const item of state.layers.values()) sourceCounts.set(getSourceId(item),(sourceCounts.get(getSourceId(item))||0)+1);
+  for(const item of state.layers.values()){
+    const el=document.createElement('div'); el.className='layer-item'+(item.id===state.activeId?' active':'');
+    const title=displayLayerName(item);
+    const count=sourceCounts.get(getSourceId(item))||1;
+    el.innerHTML=`<div class="layer-name"><b title="${escapeHtml(title)}">${escapeHtml(title)}</b><span>${geometrySummary(item.data)} · ${item.fields.length} numeric fields<span class="source-count">${count>1?'· '+count+' views':''}</span></span><div class="layer-sub">Source: ${escapeHtml(item.sourceName||item.name)}</div></div><div class="pill">${escapeHtml(item.style.attribute||'none')}</div>`;
+    el.onclick=()=>selectLayer(item.id); layersEl.appendChild(el);
+  }
+}
+function updateLegend(item){
+  if(!item || !item.style.attribute){$('legendEmpty').style.display='block';$('legendContent').style.display='none';return;}
+  $('legendEmpty').style.display='none';$('legendContent').style.display='block';
+  $('legendMin').textContent=fmt(item.style.min);$('legendMax').textContent=fmt(item.style.max);
+  const n=7, html=[];for(let i=0;i<n;i++){
+    const a=item.style.min+(item.style.max-item.style.min)*i/(n-1); const b=i===n-1?item.style.max:item.style.min+(item.style.max-item.style.min)*(i+1)/(n-1);
+    html.push(`<div class="class-row"><span class="swatch" style="background:${ramp[i]}"></span><span>${fmt(a)}${i===n-1?'':' – '+fmt(b)}</span></div>`);
+  }
+  html.push(`<div class="class-row null-row"><span class="swatch" style="background:${NULL_COLOR};border:1px dashed #d9e2e8"></span><span>Null / blank</span></div>`);
+  $('classes').innerHTML=html.join('');
+}
+function updateControls(item){
+  attrSelect.innerHTML='';
+  const hasFields=!!item && item.fields.length>0;
+  if(!item){
+    attrSelect.disabled=true;attrSelect.innerHTML='<option>Select a layer first</option>';
+    $('minVal').textContent='—';$('maxVal').textContent='—';$('downloadStyle').disabled=true;$('downloadSld').disabled=true;$('addStyledLayer').disabled=true;$('viewTable').disabled=true;updateLegend(null);return;
+  }
+  attrSelect.disabled=!hasFields;
+  if(hasFields){
+    item.fields.forEach(f=>{const o=document.createElement('option');o.value=f.name;o.textContent=`${f.name} (${fmt(f.min)} → ${fmt(f.max)})`;o.selected=f.name===item.style.attribute;attrSelect.appendChild(o);});
+  }else attrSelect.innerHTML='<option>No numeric attributes</option>';
+  $('minVal').textContent=hasFields?fmt(item.style.min):'—';$('maxVal').textContent=hasFields?fmt(item.style.max):'—';
+  $('downloadStyle').disabled=!hasFields;$('downloadSld').disabled=!hasFields;$('addStyledLayer').disabled=!hasFields;$('viewTable').disabled=false;
+  updateLegend(hasFields?item:null);
+}
+function selectLayer(id){
+  state.activeId=id; const item=state.layers.get(id); updateLayerList(); updateControls(item);
+  if(item.mapLayer){ const b=item.mapLayer.getBounds(); if(b.isValid()) map.fitBounds(b,{padding:[80,80],maxZoom:16}); }
+  $('status').innerHTML=`<strong>${escapeHtml(displayLayerName(item))}</strong> · ${item.data.features?.length||0} features · ${item.style.attribute||'No numeric attribute'}`;
+}
+function classify(item,attribute){
+  const f=item.fields.find(x=>x.name===attribute); if(!f)return;
+  item.style={attribute:f.name,min:f.min,max:f.max};
+  item.layerName=`${item.sourceName||item.name} · ${f.name}`;
+  refreshItem(item); updateControls(item); updateLayerList();
+  if(state.tablePage && $('tableWrap').style.display==='block') renderTable(item);
+  const g=geometryCounts(item.data); $('status').innerHTML=`<strong>${escapeHtml(displayLayerName(item))}</strong> · styled by <strong>${escapeHtml(f.name)}</strong> · ${fmt(f.min)} to ${fmt(f.max)} · ${g.Polygon} polygons / ${g.LineString} lines / ${g.Point} points`;
+}
+function addFile(file){
+  const reader=new FileReader(); reader.onload=()=>{
+    const text=String(reader.result||'');
+    try{
+      let data;
+      let repaired=false;
+      try{ data=JSON.parse(text); }
+      catch(err){
+        const fix=repairCommonJson(text);
+        if(fix.changed){
+          try{ data=JSON.parse(fix.text); repaired=true; }
+          catch(err2){ throw new Error(jsonParseError(err2,fix.text)); }
+        } else {
+          throw new Error(jsonParseError(err,text));
+        }
+      }
+      let fc=parseGeoJSON(data);
+      fc=normalizeGeoJSON(fc);
+      const fields=numericFields(fc);
+      const id=crypto.randomUUID();
+      const first=fields[0] || {name:'',min:0,max:0,count:0};
+      const item={id,name:file.name,sourceName:file.name,data:fc,fields,style:{attribute:first.name,min:first.min,max:first.max},layerName:first.name?`${file.name} · ${first.name}`:file.name,mapLayer:null,sourceId:id};
+      state.layers.set(id,item); refreshItem(item); selectLayer(id); updateLayerList();
+      const b=item.mapLayer.getBounds(); if(b.isValid()) map.fitBounds(b,{padding:[80,80],maxZoom:16});
+      if(repaired) alert(`${file.name}: A common missing-comma JSON error was repaired automatically before loading.`);
+    }catch(err){
+      alert(`${file.name}: ${err.message}`);
+    }
+  };
+  reader.onerror=()=>alert(`${file.name}: The browser could not read this file.`);
+  reader.readAsText(file);
+}
+function processFiles(files){[...files].filter(f=>/\.geojson$|\.json$/i.test(f.name)||f.type==='application/geo+json'||f.type==='application/json').forEach(addFile);}
+fileInput.addEventListener('change',e=>processFiles(e.target.files));
+drop.addEventListener('dragover',e=>{e.preventDefault();drop.classList.add('drag')});drop.addEventListener('dragleave',()=>drop.classList.remove('drag'));drop.addEventListener('drop',e=>{e.preventDefault();drop.classList.remove('drag');processFiles(e.dataTransfer.files)});
+attrSelect.addEventListener('change',e=>{const item=state.layers.get(state.activeId);if(item)classify(item,e.target.value)});
+
+
+function addStyledLayerFromActive(){
+  const source=state.layers.get(state.activeId); if(!source || !source.style.attribute)return;
+  const id=crypto.randomUUID();
+  const clone={
+    id,
+    name:source.name,
+    sourceName:source.sourceName,
+    sourceId:getSourceId(source),
+    data:source.data,
+    fields:source.fields,
+    style:{...source.style},
+    layerName:displayLayerName(source)+` (copy)`,
+    mapLayer:null
+  };
+  state.layers.set(id,clone);
+  refreshItem(clone);
+  selectLayer(id);
+  updateLayerList();
+  $('status').innerHTML=`<strong>${escapeHtml(displayLayerName(clone))}</strong> · independent map layer created from the same file`;
+}
+$('addStyledLayer').addEventListener('click',addStyledLayerFromActive);
+$('viewTable').addEventListener('click',()=>openTable(state.layers.get(state.activeId)));
+$('closeTable').addEventListener('click',closeTable);
+$('prevPage').addEventListener('click',()=>{const item=state.layers.get(state.activeId);if(!item)return;if(state.tablePage>1){state.tablePage--;renderTable(item);}});
+$('nextPage').addEventListener('click',()=>{const item=state.layers.get(state.activeId);if(!item)return;const total=Math.max(1,Math.ceil(item.data.features.length/state.tablePageSize));if(state.tablePage<total){state.tablePage++;renderTable(item);}});
+function styleJSON(item){
+  return {version:1,type:'GeoJSON',layer:item.name,attribute:item.style.attribute,min:item.style.min,max:item.style.max,scale:'linear',colorRamp:ramp,missingValueColor:NULL_COLOR,missingValueLabel:'Null / blank'};
+}
+function downloadText(text,name,type){const blob=new Blob([text],{type});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+$('downloadStyle').onclick=()=>{const item=state.layers.get(state.activeId);if(item)downloadText(JSON.stringify(styleJSON(item),null,2),item.name.replace(/\.[^.]+$/,'')+'_style.json','application/json')};
+function sld(item){const a=item.style.attribute,min=item.style.min,max=item.style.max; const colors=ramp; const rules=[`<se:Rule><se:Name>Null / blank</se:Name><ogc:Filter><ogc:Or><ogc:PropertyIsNull><ogc:PropertyName>${escapeHtml(a)}</ogc:PropertyName></ogc:PropertyIsNull><ogc:PropertyIsEqualTo><ogc:PropertyName>${escapeHtml(a)}</ogc:PropertyName><ogc:Literal></ogc:Literal></ogc:PropertyIsEqualTo></ogc:Or></ogc:Filter><se:PolygonSymbolizer><se:Fill><se:CssParameter name="fill">${NULL_COLOR}</se:CssParameter><se:CssParameter name="fill-opacity">0.46</se:CssParameter></se:Fill><se:Stroke><se:CssParameter name="stroke">${NULL_COLOR}</se:CssParameter><se:CssParameter name="stroke-width">1.4</se:CssParameter><se:CssParameter name="stroke-dasharray">5 4</se:CssParameter></se:Stroke></se:PolygonSymbolizer></se:Rule>`]; for(let i=0;i<colors.length;i++){const lo=min+(max-min)*i/(colors.length),hi=i===colors.length-1?max:min+(max-min)*(i+1)/(colors.length);rules.push(`<se:Rule><se:Name>${lo} – ${hi}</se:Name><ogc:Filter><ogc:And><ogc:PropertyIsGreaterThanOrEqualTo><ogc:PropertyName>${escapeHtml(a)}</ogc:PropertyName><ogc:Literal>${lo}</ogc:Literal></ogc:PropertyIsGreaterThanOrEqualTo>${i===colors.length-1?'':`<ogc:PropertyIsLessThan><ogc:PropertyName>${escapeHtml(a)}</ogc:PropertyName><ogc:Literal>${hi}</ogc:Literal></ogc:PropertyIsLessThan>`}</ogc:And></ogc:Filter><se:PolygonSymbolizer><se:Fill><se:CssParameter name="fill">${colors[i]}</se:CssParameter><se:CssParameter name="fill-opacity">0.62</se:CssParameter></se:Fill><se:Stroke><se:CssParameter name="stroke">${colors[i]}</se:CssParameter><se:CssParameter name="stroke-width">1.4</se:CssParameter></se:Stroke></se:PolygonSymbolizer></se:Rule>`)}
+ return `<?xml version="1.0" encoding="UTF-8"?><StyledLayerDescriptor version="1.0.0" xmlns="http://www.opengis.net/sld" xmlns:se="http://www.opengis.net/se" xmlns:ogc="http://www.opengis.net/ogc"><NamedLayer><se:Name>${escapeHtml(item.name)}</se:Name><UserStyle><se:Name>Automatic blue linear style</se:Name>${rules.join('')}</UserStyle></NamedLayer></StyledLayerDescriptor>`;
+}
+$('downloadSld').onclick=()=>{const item=state.layers.get(state.activeId);if(item)downloadText(sld(item),item.name.replace(/\.[^.]+$/,'')+'_style.sld','application/vnd.ogc.sld+xml')};
+
+updateLayerList();
+</script>
+</body>
+</html>
