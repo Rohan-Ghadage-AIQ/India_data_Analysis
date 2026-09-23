@@ -59,7 +59,7 @@ An automated, senior-grade geospatial metadata extraction, enrichment, and workb
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/Rohan-Ghadage-AIQ/India_data_Analysis.git
 cd Excel_Sheet-json
 
 # Install dependencies
